@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { getRandomWord } from '../functions/getRandomWord'
+import { getRandomWord } from '../../functions/getRandomWord'
 
 export default function App() {
   const [word, setWord] = useState<{ text: string } | null>(null)
@@ -14,7 +14,7 @@ export default function App() {
 
   const fetchWord = async () => {
     const randomWord = await getRandomWord()
-    if (randomWord) setWord(randomWord)
+    if (randomWord && randomWord.English != null) setWord({ text: String(randomWord.English) })
     alert(JSON.stringify(randomWord));
   }
 
