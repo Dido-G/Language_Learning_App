@@ -18,5 +18,5 @@ export async function getRandomWord() {
   const randomWord = data[randomIndex]
 
   console.log('Random word:', randomWord)
-  return randomWord.english
+  return {eng: randomWord.english, bulg: randomWord.bg}
 }

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet } from 'react-native'
 import { getRandomWord } from '../../functions/getRandomWord'
 
 export default function App() {
-  const [word, setWord] = useState<{ text: string } | null>(null)
-  
+  const [word, setWord] = useState<string>('');
+  const [bgWord, setBgWord] = useState<string>('');
   useEffect(() => {
     fetchWord();
 
@@ -14,14 +14,19 @@ export default function App() {
 
   const fetchWord = async () => {
     const randomWord = await getRandomWord()
-    if (randomWord && randomWord.English != null) setWord({ text: String(randomWord.English) })
-    alert(JSON.stringify(randomWord));
+    if (randomWord) {
+      setWord(randomWord.eng)
+      setBgWord(randomWord.bulg)
+    }
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.word}>
-        {word ? word.text : 'Loading...'}
+        {word ? word: 'Loading...'}
+      </Text>
+      <Text style={styles.word}>
+        {bgWord ? bgWord:'Loading...'}
       </Text>
     </View>
   )
@@ -29,5 +34,5 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  word: { fontSize: 32, fontWeight: 'bold' }
+  word: { fontSize: 32, fontWeight: 'bold', color:'#FFFFFF' }
 })
