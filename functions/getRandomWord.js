@@ -11,12 +11,12 @@ export async function getRandomWord() {
     return null
   }
 
-  console.log('Fetched data:', data)
+  // console.log('Fetched data:', data)
 
   // Pick random row
   const randomIndex = Math.floor(Math.random() * data.length)
   const randomWord = data[randomIndex]
 
-  console.log('Random word:', randomWord)
+  // console.log('Random word:', randomWord)
   return {eng: randomWord.english, bulg: randomWord.bg}
 }

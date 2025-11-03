@@ -1,10 +1,23 @@
 import React, { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { getRandomWord } from '../../functions/getRandomWord'
+import * as Speech from 'expo-speech'
+
 
 export default function App() {
   const [word, setWord] = useState<string>('');
   const [bgWord, setBgWord] = useState<string>('');
+
+  useEffect(() => {
+    if(word) {
+      Speech.speak(word, {language:'en'})
+    }
+    if(bgWord) {
+      Speech.speak(bgWord, {language:'bg'})
+    }
+  }, [word]);
+  
+
   useEffect(() => {
     fetchWord();
 
@@ -19,7 +32,6 @@ export default function App() {
       setBgWord(randomWord.bulg)
     }
   }
-
   return (
     <View style={styles.container}>
       <Text style={styles.word}>
