@@ -52,3 +52,7 @@ app-example
 tools/vocab/.venv/
 tools/vocab/cache/
 __pycache__/
+
+# build outputs
+*.apk
+*.aab
