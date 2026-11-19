@@ -20,7 +20,7 @@ REPO_ROOT = HERE.parent.parent
 DATA_DIR = HERE / "data"
 CACHE_DIR = HERE / "cache"
 WORDLIST_URL = "https://raw.githubusercontent.com/tyypgzl/Oxford-5000-words/main/full-word.json"
-LEVELS = ("A1", "A2", "B1")
+LEVELS = ("A1", "A2", "B1", "B2")
 CSV_FIELDS = ["english", "bg", "pos", "needs_review"]
 MIN_INTERVAL = 0.8  # seconds between requests (Google allows ~5/s but blocks IPs on bursts)
 BATCH_SIZE = 200
@@ -62,7 +62,14 @@ def load_words(level: str) -> list[dict]:
             merged[key] = {"english": word, "pos": [pos] if pos else []}
         elif pos and pos not in merged[key]["pos"]:
             merged[key]["pos"].append(pos)
-    return sorted(merged.values(), key=lambda w: w["english"].lower())
+    words = sorted(merged.values(), key=lambda w: w["english"].lower())
+    # From B2 on, skip words Oxford also lists at a lower level (A1-B1 keep their original lists).
+    if LEVELS.index(level) >= LEVELS.index("B2"):
+        lower: set[str] = set()
+        for prev in LEVELS[: LEVELS.index(level)]:
+            lower |= {w["english"].lower() for w in load_words(prev)}
+        words = [w for w in words if w["english"].lower() not in lower]
+    return words
 
 
 # ------------------------------------------------------------------- translation
