@@ -9,7 +9,7 @@ import { pickRandom, type Level, type Word } from '@/lib/words';
 const SILENCE = require('@/assets/audio/silence.wav'); // 30 s of silence, looped
 const SILENCE_SECONDS = 30;
 
-const PAUSE_AFTER_ENGLISH_MS = 250;
+const PAUSE_AFTER_ENGLISH_MS = 150;
 const PAUSE_AFTER_BULGARIAN_MS = 400;
 const ERROR_BACKOFF_MS = 700;
 const PREFETCH_WAIT_MS = 4000;
@@ -20,7 +20,7 @@ export type Phase = 'idle' | 'loading' | 'english' | 'bulgarian' | 'pause' | 'pa
 
 /**
  * Continuous Listen Mode, Spotify-style:
- *   English -> 250 ms -> Bulgarian -> 400 ms -> next random word, until Stop.
+ *   English -> 150 ms -> Bulgarian -> 400 ms -> next random word, until Stop.
  *
  * How it survives a locked screen (Android dev/EAS build):
  * - A looping silent track plays through expo-audio with `shouldPlayInBackground` and
