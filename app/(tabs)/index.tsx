@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import * as Speech from 'expo-speech';
 import { StyleSheet, Text, View } from 'react-native';
 import { getRandomWord, type Word } from '@/lib/words';
 
@@ -10,6 +11,14 @@ export default function HomeScreen() {
     setWord(await getRandomWord('A1'));
     setLoading(false);
   }, []);
+
+  // Interim device TTS; replaced by pre-generated audio files later.
+  useEffect(() => {
+    if (!word) return;
+    Speech.stop();
+    Speech.speak(word.english, { language: 'en' });
+    Speech.speak(word.bulgarian, { language: 'bg' });
+  }, [word]);
 
   useEffect(() => {
     fetchWord();
