@@ -43,3 +43,7 @@ app-example
 /android
 
 .env
+
+# env files (keep the example)
+.env*
+!.env.example
