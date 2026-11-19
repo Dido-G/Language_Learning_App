@@ -5,7 +5,7 @@ import { DataState, Screen } from '@/components/screen';
 import { useTheme } from '@/hooks/use-theme';
 import { useWords } from '@/hooks/use-words';
 import { useLevel } from '@/lib/level-context';
-import { BG_LANG, EN_LANG, speakAsync, stopSpeaking, unlockSpeech } from '@/lib/speech';
+import { BG_LANG, EN_LANG, prefetchSpeech, speakAsync, stopSpeaking, unlockSpeech } from '@/lib/speech';
 import type { Word } from '@/lib/words';
 
 export default function WordsScreen() {
@@ -24,8 +24,9 @@ export default function WordsScreen() {
   const play = async (w: Word) => {
     unlockSpeech();
     stopSpeaking();
-    await speakAsync(w.english, EN_LANG);
-    await speakAsync(w.bg, BG_LANG);
+    prefetchSpeech(w.bg, BG_LANG, w);
+    await speakAsync(w.english, EN_LANG, w);
+    await speakAsync(w.bg, BG_LANG, w);
   };
 
   const ready = !loading && !error && words.length > 0;

@@ -48,7 +48,7 @@ export default function StudyScreen() {
     if (!card) return;
     unlockSpeech();
     stopSpeaking();
-    speakAsync(flipped ? card.bg : card.english, flipped ? BG_LANG : EN_LANG);
+    speakAsync(flipped ? card.bg : card.english, flipped ? BG_LANG : EN_LANG, card);
   };
 
   const ready = !loading && !error && deck.length > 0;

@@ -1,11 +1,15 @@
 // Web implementation (Metro picks this file on web instead of speech.ts).
 //
-// Both English and Bulgarian are played as MP3s from the local neural TTS server
-// (tools/vocab/tts_server.py: en-US-JennyNeural / bg-BG-KalinaNeural). Audio is downloaded into blob:
+// Both English and Bulgarian are played as neural MP3s (en-US-JennyNeural / bg-BG-KalinaNeural):
+// first the pre-generated clip in Supabase Storage (when a Word is passed), else the local
+// tts_server.py. Audio is downloaded into blob:
 // URLs ahead of time (prefetchSpeech) so playback starts instantly with no network wait.
 // Fallbacks if the server is down: Google Translate TTS, then a local speechSynthesis voice.
 // Browsers block audio until the user interacts, so call unlockSpeech() from a click handler.
+import { neuralAudioUrl, type AudioRef } from './audio-url';
 import { sleep } from './clock';
+
+export type { AudioRef } from './audio-url';
 
 export const EN_LANG = 'en-US';
 export const BG_LANG = 'bg-BG';
@@ -49,8 +53,25 @@ export function unlockSpeech() {
   } catch {}
 }
 
-/** Download text's audio from the local TTS server into a blob: URL (deduped, cached, never throws). */
-function fetchBlob(text: string, language: string): Promise<string | null> {
+/** Fetch the first URL that works into a blob: URL. Never throws. */
+async function fetchFirst(urls: string[]): Promise<Blob | null> {
+  for (const url of urls) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      if (r.ok) return await r.blob();
+    } catch {
+      // try the next source
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
+
+/** Download a word's neural audio into a blob: URL (deduped, cached, never throws). */
+function fetchBlob(text: string, language: string, ref?: AudioRef): Promise<string | null> {
   const key = keyOf(text, language);
   const have = blobs.get(key);
   if (have) {
@@ -61,10 +82,8 @@ function fetchBlob(text: string, language: string): Promise<string | null> {
   const pending = inflight.get(key);
   if (pending) return pending;
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  const p = fetch(serverUrl(text, language), { signal: ctrl.signal })
-    .then((r) => (r.ok ? r.blob() : null))
+  const urls = ref ? [neuralAudioUrl(ref, language), serverUrl(text, language)] : [serverUrl(text, language)];
+  const p = fetchFirst(urls)
     .then((blob) => {
       if (!blob) return null;
       const url = URL.createObjectURL(blob);
@@ -76,18 +95,15 @@ function fetchBlob(text: string, language: string): Promise<string | null> {
       }
       return url;
     })
-    .catch(() => null) // server not running / timeout: speakAsync falls back
-    .finally(() => {
-      clearTimeout(timer);
-      inflight.delete(key);
-    });
+    .catch(() => null) // every source failed: speakAsync falls back
+    .finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
 }
 
 /** Make text's audio ready to play instantly. Resolves when ready (or failed). */
-export async function prefetchSpeech(text: string, language: string): Promise<void> {
-  await fetchBlob(text, language);
+export async function prefetchSpeech(text: string, language: string, ref?: AudioRef): Promise<void> {
+  await fetchBlob(text, language, ref);
 }
 
 function cancelPlayback() {
@@ -162,10 +178,11 @@ function playLocalVoice(text: string, language: string, rate: number): Promise<v
 }
 
 /** Speak text and resolve when finished (or stopped/failed). Never rejects, never hangs > ~13 s. */
-export async function speakAsync(text: string, language: string, rate = 0.9): Promise<void> {
+export async function speakAsync(text: string, language: string, ref?: AudioRef): Promise<void> {
+  const rate = 0.9;
   const mine = ++generation;
   cancelPlayback();
-  const blobUrl = await fetchBlob(text, language); // instant when prefetched
+  const blobUrl = await fetchBlob(text, language, ref); // instant when prefetched
   if (mine !== generation) return;
   if (blobUrl && (await playUrl(blobUrl))) return;
   if (mine !== generation) return;

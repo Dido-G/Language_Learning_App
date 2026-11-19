@@ -10,7 +10,7 @@ const SILENCE = require('@/assets/audio/silence.wav'); // 30 s of silence, loope
 const SILENCE_SECONDS = 30;
 
 const PAUSE_AFTER_ENGLISH_MS = 250;
-const PAUSE_AFTER_BULGARIAN_MS = 500;
+const PAUSE_AFTER_BULGARIAN_MS = 400;
 const ERROR_BACKOFF_MS = 700;
 const PREFETCH_WAIT_MS = 4000;
 const STATUS_INTERVAL_MS = 250; // silent-track status updates double as the background clock
@@ -20,7 +20,7 @@ export type Phase = 'idle' | 'loading' | 'english' | 'bulgarian' | 'pause' | 'pa
 
 /**
  * Continuous Listen Mode, Spotify-style:
- *   English -> 250 ms -> Bulgarian -> 500 ms -> next random word, until Stop.
+ *   English -> 250 ms -> Bulgarian -> 400 ms -> next random word, until Stop.
  *
  * How it survives a locked screen (Android dev/EAS build):
  * - A looping silent track plays through expo-audio with `shouldPlayInBackground` and
@@ -223,20 +223,20 @@ export function useListenSession(words: Word[], level: Level) {
 
         // Both clips ready before we start (web: instant if prefetched during the previous word).
         await withTimeout(
-          Promise.all([prefetchSpeech(word.english, EN_LANG), prefetchSpeech(word.bg, BG_LANG)]),
+          Promise.all([prefetchSpeech(word.english, EN_LANG, word), prefetchSpeech(word.bg, BG_LANG, word)]),
           PREFETCH_WAIT_MS
         );
         // Look ahead: fetch the next word's audio while this one plays.
         const following = pickRandom(wordsRef.current, word);
         if (following) {
-          prefetchSpeech(following.english, EN_LANG);
-          prefetchSpeech(following.bg, BG_LANG);
+          prefetchSpeech(following.english, EN_LANG, following);
+          prefetchSpeech(following.bg, BG_LANG, following);
         }
 
         const interrupted = () => !alive() || pausedRef.current || skipRef.current !== null;
         if (!interrupted()) {
           setPhase('english');
-          await speakAsync(word.english, EN_LANG);
+          await speakAsync(word.english, EN_LANG, word);
         }
         if (!interrupted()) {
           setPhase('pause');
@@ -244,7 +244,7 @@ export function useListenSession(words: Word[], level: Level) {
         }
         if (!interrupted()) {
           setPhase('bulgarian');
-          await speakAsync(word.bg, BG_LANG);
+          await speakAsync(word.bg, BG_LANG, word);
         }
         if (!interrupted()) {
           setPhase('pause');
