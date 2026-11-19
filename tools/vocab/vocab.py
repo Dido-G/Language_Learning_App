@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Prepare (download + translate) and push CEFR vocabulary to Supabase.
 
-Usage: vocab.py prepare --level A1 | vocab.py push --level A1 [--dry-run] [--allow-unreviewed]
+Usage: vocab.py prepare --level A1 | push --level A1 [--dry-run] [--allow-unreviewed]
+       | audio --level A1 [--force]   (neural MP3s -> Supabase Storage)
 """
 import argparse
 import csv
@@ -237,20 +238,140 @@ def cmd_push(level: str, dry_run: bool, allow_unreviewed: bool) -> None:
     print("Done.")
 
 
+# ------------------------------------------------------------------ neural audio
+AUDIO_BUCKET = "audio"
+AUDIO_WORKERS = 2  # Supabase free tier rejects many parallel storage connections (429)
+
+
+def supabase_session() -> tuple[str, dict]:
+    load_env()
+    url = os.environ.get("EXPO_PUBLIC_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        sys.exit("Set EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env")
+    return url.rstrip("/"), {"apikey": key, "Authorization": f"Bearer {key}"}
+
+
+def ensure_bucket(base: str, h: dict) -> None:
+    r = requests.get(f"{base}/storage/v1/bucket/{AUDIO_BUCKET}", headers=h, timeout=30)
+    if r.ok:
+        return
+    r = requests.post(
+        f"{base}/storage/v1/bucket",
+        headers={**h, "Content-Type": "application/json"},
+        json={"id": AUDIO_BUCKET, "name": AUDIO_BUCKET, "public": True,
+              "allowed_mime_types": ["audio/mpeg"], "file_size_limit": 1048576},
+        timeout=30,
+    )
+    if not r.ok:
+        sys.exit(f"Could not create bucket ({r.status_code}): {r.text[:200]}")
+    print(f"Created public storage bucket '{AUDIO_BUCKET}'")
+
+
+def list_objects(base: str, h: dict, prefix: str) -> set[str]:
+    names, offset = set(), 0
+    while True:
+        r = requests.post(
+            f"{base}/storage/v1/object/list/{AUDIO_BUCKET}",
+            headers={**h, "Content-Type": "application/json"},
+            json={"prefix": prefix, "limit": 1000, "offset": offset},
+            timeout=60,
+        )
+        r.raise_for_status()
+        page = r.json()
+        names.update(o["name"] for o in page)
+        if len(page) < 1000:
+            return names
+        offset += 1000
+
+
+def fetch_rows(base: str, h: dict, level: str) -> list[dict]:
+    rows, start = [], 0
+    while True:
+        r = requests.get(
+            f"{base}/rest/v1/vocabulary?select=id,english,bg&level=eq.{level}&order=id",
+            headers={**h, "Range": f"{start}-{start + 999}"},
+            timeout=60,
+        )
+        r.raise_for_status()
+        rows += r.json()
+        if len(r.json()) < 1000:
+            return rows
+        start += 1000
+
+
+def cmd_audio(level: str, force: bool) -> None:
+    """Generate en-US-JennyNeural / bg-BG-KalinaNeural MP3s and upload to audio/<level>/<id>_<lang>.mp3.
+
+    Re-run with --force after editing a word's text so its audio is regenerated.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    import tts_server  # shares the on-disk cache in cache/tts/
+
+    base, h = supabase_session()
+    ensure_bucket(base, h)
+    rows = fetch_rows(base, h, level)
+    existing = set() if force else list_objects(base, h, f"{level}/")
+    jobs = []
+    for r in rows:
+        for lang, text in (("en", r["english"]), ("bg", r["bg"])):
+            name = f"{r['id']}_{lang}.mp3"
+            if text.strip() and name not in existing:
+                jobs.append((f"{level}/{name}", text, tts_server.VOICES[lang]))
+    print(f"{level}: {len(rows)} words, {len(existing)} files already uploaded, {len(jobs)} to upload")
+
+    def run(job: tuple[str, str, str]) -> str | None:
+        path, text, voice = job
+        try:
+            data = tts_server.ensure(text, voice).read_bytes()
+            delay = 1.0
+            for _ in range(6):
+                r = requests.post(
+                    f"{base}/storage/v1/object/{AUDIO_BUCKET}/{path}",
+                    headers={**h, "Content-Type": "audio/mpeg", "x-upsert": "true",
+                             "Cache-Control": "max-age=31536000"},
+                    data=data,
+                    timeout=60,
+                )
+                if r.status_code not in (429, 500, 502, 503, 504):
+                    break
+                time.sleep(delay)
+                delay = min(delay * 2, 30)
+            return None if r.ok else f"{path}: {r.status_code} {r.text[:120]}"
+        except Exception as exc:
+            return f"{path}: {exc}"
+
+    failures = []
+    with ThreadPoolExecutor(AUDIO_WORKERS) as pool:
+        for i, err in enumerate(pool.map(run, jobs), 1):
+            if err:
+                failures.append(err)
+            if i % 200 == 0:
+                print(f"  {i}/{len(jobs)}")
+    print(f"Uploaded {len(jobs) - len(failures)}/{len(jobs)}; {len(failures)} failed")
+    for f in failures[:10]:
+        print("  !", f)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("prepare", "push"):
+    for name in ("prepare", "push", "audio"):
         sp = sub.add_parser(name)
         sp.add_argument("--level", required=True, choices=LEVELS)
         if name == "prepare":
             sp.add_argument("--engine", choices=("google", "mymemory"), default="google")
+        if name == "audio":
+            sp.add_argument("--force", action="store_true", help="re-upload existing files")
         if name == "push":
             sp.add_argument("--dry-run", action="store_true")
             sp.add_argument("--allow-unreviewed", action="store_true")
     a = p.parse_args()
     if a.cmd == "prepare":
         cmd_prepare(a.level, a.engine)
+    elif a.cmd == "audio":
+        cmd_audio(a.level, a.force)
     else:
         cmd_push(a.level, a.dry_run, a.allow_unreviewed)
 
