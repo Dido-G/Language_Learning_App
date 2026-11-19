@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import * as Speech from 'expo-speech';
 import { StyleSheet, Text, View } from 'react-native';
-import { getRandomWord, type Word } from '@/lib/words';
+import { getWordsByLevel, pickRandom, type Word } from '@/lib/words';
 
 export default function HomeScreen() {
   const [word, setWord] = useState<Word | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchWord = useCallback(async () => {
-    setWord(await getRandomWord('A1'));
+    try {
+      setWord(pickRandom(await getWordsByLevel('A1')));
+    } catch (e) {
+      console.warn(e);
+    }
     setLoading(false);
   }, []);
 
@@ -17,7 +21,7 @@ export default function HomeScreen() {
     if (!word) return;
     Speech.stop();
     Speech.speak(word.english, { language: 'en' });
-    Speech.speak(word.bulgarian, { language: 'bg' });
+    Speech.speak(word.bg, { language: 'bg' });
   }, [word]);
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export default function HomeScreen() {
       <Text style={styles.word}>
         {word ? word.english : loading ? 'Loading...' : 'No words yet'}
       </Text>
-      {word && <Text style={styles.translation}>{word.bulgarian}</Text>}
+      {word && <Text style={styles.translation}>{word.bg}</Text>}
     </View>
   );
 }

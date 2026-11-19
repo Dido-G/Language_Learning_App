@@ -1,36 +1,41 @@
 import { supabase } from './supabase';
 
-export type Level = 'A1' | 'A2' | 'B1';
+export const LEVELS = ['A1', 'A2', 'B1'] as const;
+export type Level = (typeof LEVELS)[number];
 
 export type Word = {
   id: number;
   level: Level;
   english: string;
-  bulgarian: string;
-  part_of_speech: string | null;
-  notes: string | null;
+  bg: string;
 };
 
-export async function getRandomWord(level: Level = 'A1'): Promise<Word | null> {
-  const { count, error: countError } = await supabase
-    .from('vocabulary')
-    .select('id', { count: 'exact', head: true })
-    .eq('level', level);
-  if (countError || !count) {
-    if (countError) console.warn('Error counting words:', countError.message);
-    return null;
-  }
+const PAGE_SIZE = 1000; // Supabase's default max rows per request
 
-  const offset = Math.floor(Math.random() * count);
-  const { data, error } = await supabase
-    .from('vocabulary')
-    .select('id, level, english, bulgarian, part_of_speech, notes')
-    .eq('level', level)
-    .order('id')
-    .range(offset, offset);
-  if (error) {
-    console.warn('Error fetching word:', error.message);
-    return null;
+/** All words of a level, alphabetical. Pages through results so >1000 rows work. */
+export async function getWordsByLevel(level: Level): Promise<Word[]> {
+  const words: Word[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('vocabulary')
+      .select('id, level, english, bg')
+      .eq('level', level)
+      .order('english')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Failed to load ${level} words: ${error.message}`);
+    words.push(...(data as Word[]));
+    if (!data || data.length < PAGE_SIZE) break;
   }
-  return (data?.[0] as Word) ?? null;
+  return words;
+}
+
+/** Random element, avoiding `previous` when there is more than one choice. */
+export function pickRandom(words: Word[], previous?: Word | null): Word | null {
+  if (words.length === 0) return null;
+  if (words.length === 1) return words[0];
+  let next: Word;
+  do {
+    next = words[Math.floor(Math.random() * words.length)];
+  } while (previous && next.id === previous.id);
+  return next;
 }

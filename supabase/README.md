@@ -1,9 +1,5 @@
 # Supabase
 
-Apply migrations in order via the SQL editor (Dashboard → SQL Editor) or the CLI:
-
-    supabase link --project-ref pfjummblqqypqtcfsfhk
-    supabase db push
-
-The old `a1_words` test table (5 rows) is superseded by `vocabulary` and can be dropped
-once the new table is populated: `drop table public.a1_words;`
+Run the files in `migrations/` in order (Dashboard → SQL Editor, or `supabase db push`).
+`vocabulary(id, level, english, bg)` has a unique key on `(level, english)`; the app reads it
+with the anon key (RLS: public read) and `tools/vocab` writes with the service-role key.
