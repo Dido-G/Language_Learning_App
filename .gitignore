@@ -47,3 +47,8 @@ app-example
 # env files (keep the example)
 .env*
 !.env.example
+
+# python vocab tool
+tools/vocab/.venv/
+tools/vocab/cache/
+__pycache__/
