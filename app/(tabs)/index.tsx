@@ -12,7 +12,7 @@ export default function ListenScreen() {
   const t = useTheme();
   const { level } = useLevel();
   const { words, loading, error, reload } = useWords(level);
-  const { running, current, phase, start, stop } = useListenSession(words, level);
+  const { running, paused, current, phase, start, stop, pause, resume, next } = useListenSession(words, level);
   const [bgVoice, setBgVoice] = useState(true);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function ListenScreen() {
         <View style={styles.content}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
             <Text style={[styles.hint, { color: t.textMuted }]}>
-              {running ? `Playing random ${level} words` : `${words.length} words in ${level}`}
+              {paused ? 'Paused' : running ? `Playing random ${level} words` : `${words.length} words in ${level}`}
             </Text>
             <Text
               style={[styles.english, { color: phase === 'english' ? t.primary : t.text }]}
@@ -46,17 +46,37 @@ export default function ListenScreen() {
             </Text>
           </View>
 
-          <Pressable
-            onPress={running ? stop : start}
-            accessibilityRole="button"
-            accessibilityLabel={running ? 'Stop listening' : 'Start listening'}
-            style={[styles.play, { backgroundColor: running ? t.danger : t.primary }]}>
-            <Ionicons name={running ? 'stop' : 'play'} size={36} color={t.onPrimary} />
-          </Pressable>
+          <View style={styles.controls}>
+            {running && (
+              <Pressable
+                onPress={stop}
+                accessibilityRole="button"
+                accessibilityLabel="Stop listening"
+                style={[styles.small, { backgroundColor: t.surfaceAlt }]}>
+                <Ionicons name="stop" size={24} color={t.danger} />
+              </Pressable>
+            )}
+            <Pressable
+              onPress={!running ? start : paused ? resume : pause}
+              accessibilityRole="button"
+              accessibilityLabel={!running ? 'Start listening' : paused ? 'Resume' : 'Pause'}
+              style={[styles.play, { backgroundColor: t.primary }]}>
+              <Ionicons name={running && !paused ? 'pause' : 'play'} size={36} color={t.onPrimary} />
+            </Pressable>
+            {running && (
+              <Pressable
+                onPress={next}
+                accessibilityRole="button"
+                accessibilityLabel="Next word"
+                style={[styles.small, { backgroundColor: t.surfaceAlt }]}>
+                <Ionicons name="play-skip-forward" size={24} color={t.text} />
+              </Pressable>
+            )}
+          </View>
 
           <Text style={[styles.note, { color: t.textMuted }]}>
-            English → Bulgarian → next word, on repeat. Keeps going with the screen locked
-            (Android development build).
+            English → Bulgarian → next word, on repeat. Keeps going with the screen locked; use the
+            lock-screen controls to pause, resume or skip (Android development build).
           </Text>
           {!bgVoice && (
             <Text style={[styles.note, { color: t.danger }]}>
@@ -86,6 +106,8 @@ const styles = StyleSheet.create({
   english: { fontSize: 44, fontWeight: '800', textAlign: 'center' },
   divider: { width: 48, height: 3, borderRadius: 2 },
   bg: { fontSize: 38, fontWeight: '700', textAlign: 'center' },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  small: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   play: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   note: { fontSize: 13, textAlign: 'center', paddingHorizontal: 12 },
 });

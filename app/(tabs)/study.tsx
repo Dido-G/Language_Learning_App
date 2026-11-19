@@ -5,7 +5,7 @@ import { DataState, Screen } from '@/components/screen';
 import { useTheme } from '@/hooks/use-theme';
 import { useWords } from '@/hooks/use-words';
 import { useLevel } from '@/lib/level-context';
-import { BG_LANG, EN_LANG, speakAsync, stopSpeaking } from '@/lib/speech';
+import { BG_LANG, EN_LANG, speakAsync, stopSpeaking, unlockSpeech } from '@/lib/speech';
 import type { Word } from '@/lib/words';
 
 function shuffled<T>(items: T[]): T[] {
@@ -46,6 +46,7 @@ export default function StudyScreen() {
 
   const speak = () => {
     if (!card) return;
+    unlockSpeech();
     stopSpeaking();
     speakAsync(flipped ? card.bg : card.english, flipped ? BG_LANG : EN_LANG);
   };
